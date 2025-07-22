@@ -3,6 +3,8 @@ from deepface import DeepFace
 import cv2
 import tempfile
 import os
+import sys
+print("Python version:", sys.version)
 
 st.set_page_config(page_title="Emotion Detection Chatbot", layout="centered")
 st.title("🧠 Emotion Detection Chatbot")
