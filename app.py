@@ -1,82 +1,58 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode, ClientSettings
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import av
-import cv2
 import numpy as np
 from fer import FER
-import tempfile
+import cv2
 
-# Set Streamlit page config
 st.set_page_config(page_title="Emotion Detection Chatbot", layout="centered")
+st.title("🎭 Emotion Detection Chatbot")
+st.markdown("This app uses your webcam to detect your facial emotion and responds accordingly.")
 
-# Initialize FER detector
-detector = FER()
+EMOTION_RESPONSES = {
+    "happy": "I'm glad to see you're happy! 😊",
+    "sad": "I'm here for you. What's wrong? 😢",
+    "angry": "Take a deep breath. I'm listening. 😠",
+    "surprise": "Whoa! That surprised look says a lot! 😲",
+    "fear": "It’s okay to be scared. Let’s talk it out. 😨",
+    "disgust": "Something bothering you? Tell me more. 😖",
+    "neutral": "Just chilling? Let's chat! 😐",
+}
 
-# Title and Description
-st.title("😊 Emotion Detection Chatbot")
-st.write("This app uses your webcam to detect your emotion and responds with a chatbot-like message.")
-
-# Store state variables
-if "last_frame" not in st.session_state:
-    st.session_state["last_frame"] = None
-
-if "captured_frame" not in st.session_state:
-    st.session_state["captured_frame"] = None
-
-if "detected_emotion" not in st.session_state:
-    st.session_state["detected_emotion"] = None
-
-
-class EmotionTransformer(VideoTransformerBase):
+class EmotionDetectorTransformer(VideoTransformerBase):
     def __init__(self):
+        self.detector = FER()
         self.last_frame = None
-        self.last_emotion = None
+        self.last_emotion = "Not detected"
+        self.last_score = 0.0
+        self.display_frame = None
 
-    def transform(self, frame: av.VideoFrame) -> np.ndarray:
+    def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
         self.last_frame = img.copy()
+        result = self.detector.detect_emotions(img)
+        if result:
+            top_result = result[0]
+            emotions = top_result["emotions"]
+            if emotions:
+                self.last_emotion = max(emotions, key=emotions.get)
+                self.last_score = emotions[self.last_emotion]
+        self.display_frame = img.copy()
         return img
 
-
-# Start the webcam stream
 ctx = webrtc_streamer(
     key="emotion",
-    mode=WebRtcMode.SENDRECV,
-    client_settings=ClientSettings(
-        media_stream_constraints={"video": True, "audio": False},
-        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    ),
-    video_transformer_factory=EmotionTransformer,
-    async_processing=True,
+    video_transformer_factory=EmotionDetectorTransformer,
+    media_stream_constraints={"video": True, "audio": False},
+    async_transform=True
 )
 
-# Button to capture emotion
-if st.button("🎯 Capture Emotion"):
-    if ctx.video_transformer and ctx.video_transformer.last_frame is not None:
-        frame = ctx.video_transformer.last_frame
-        st.session_state["captured_frame"] = frame
+if ctx.video_transformer:
+    st.markdown(f"**Detected Emotion:** `{ctx.video_transformer.last_emotion}`")
+    st.markdown(f"**Confidence:** `{ctx.video_transformer.last_score * 100:.2f}%`")
 
-        # Save temp image
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmpfile:
-            cv2.imwrite(tmpfile.name, frame)
-            try:
-                result = detector.detect_emotions(frame)
-                if result and "emotions" in result[0]:
-                    emotions = result[0]["emotions"]
-                    dominant_emotion = max(emotions, key=emotions.get)
-                    score = emotions[dominant_emotion]
-                    st.session_state["detected_emotion"] = f"{dominant_emotion} ({score:.2f})"
-                else:
-                    st.session_state["detected_emotion"] = "Could not detect emotion"
-            except Exception as e:
-                st.session_state["detected_emotion"] = f"Emotion detection error: {e}"
-    else:
-        st.warning("No webcam frame detected yet.")
-
-# Show detected emotion
-if st.session_state["detected_emotion"]:
-    st.markdown(f"**Detected Emotion:** `{st.session_state['detected_emotion']}`")
-
-# Show captured frame
-if st.session_state["captured_frame"] is not None:
-    st.image(cv2.cvtColor(st.session_state["captured_frame"], cv2.COLOR_BGR2RGB), caption="Analyzed Frame", channels="RGB")
+    if st.button("Capture Emotion"):
+        st.image(ctx.video_transformer.display_frame, caption="Captured Frame", channels="BGR", use_column_width=True)
+        emotion = ctx.video_transformer.last_emotion
+        st.markdown(f"### 💬 Chatbot Response:")
+        st.info(EMOTION_RESPONSES.get(emotion, "Hmm, I'm not sure how to respond to that."))
