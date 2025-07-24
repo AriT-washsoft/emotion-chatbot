@@ -1,49 +1,8 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environment
 venv/
-ENV/
-env/
-.venv/
-
-# Jupyter Notebook checkpoints (if used)
-.ipynb_checkpoints/
-
-# macOS system files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
 .DS_Store
-
-# Windows system files
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Streamlit cache and logs
-.streamlit/config.toml
-.streamlit/cache/
-.streamlit/secrets.toml
-
-# VSCode or other IDE settings
-.vscode/
-.idea/
-
-# Log files
-*.log
-
-# Temporary files
-*.bak
-*.tmp
-*.swp
-
-# PyInstaller output
-dist/
-build/
-
-# Pipenv/Poetry
-Pipfile.lock
-poetry.lock
-
-# Moviepy temporary files
-*/temp_audio.mp3
+.env
