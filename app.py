@@ -1,55 +1,68 @@
+
 import streamlit as st
-from deepface import DeepFace
 import cv2
-import tempfile
-import os
-import sys
-print("Python version:", sys.version)
+import numpy as np
+from fer import FER
+from PIL import Image
 
 st.set_page_config(page_title="Emotion Detection Chatbot", layout="centered")
-st.title("🧠 Emotion Detection Chatbot")
 
-# Upload or capture image
-st.subheader("1. Capture or Upload Image")
-image_source = st.radio("Select Image Source", ["Upload Image", "Use Webcam"])
+detector = FER(mtcnn=True)
+camera_placeholder = st.empty()
+frame_placeholder = st.empty()
+emotion_placeholder = st.empty()
+response_placeholder = st.empty()
 
-image_path = None
-if image_source == "Upload Image":
-    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
-    if uploaded_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-            tmp_file.write(uploaded_file.read())
-            image_path = tmp_file.name
-            st.image(image_path, caption="Uploaded Image", use_column_width=True)
+def analyze_emotion(frame):
+    emotion, score = None, 0
+    try:
+        result = detector.top_emotion(frame)
+        if result:
+            emotion, score = result
+    except Exception as e:
+        st.error(f"Error during emotion detection: {e}")
+    return emotion, score
 
-elif image_source == "Use Webcam":
-    st.warning("Webcam capture not supported in Streamlit Cloud/Render. Use a local setup.")
+def generate_response(emotion):
+    responses = {
+        "happy": "You look happy! 😊 What's going on?",
+        "sad": "I'm here for you. Want to talk about it?",
+        "angry": "Take a deep breath. I'm listening.",
+        "surprise": "Whoa! Something unexpected?",
+        "fear": "You seem worried. How can I help?",
+        "disgust": "Yikes, that didn’t look pleasant.",
+        "neutral": "All calm, huh? Let’s chat!"
+    }
+    return responses.get(emotion, "I'm not sure how you feel. Tell me more!")
 
-# Detect emotion
-emotion_result = None
-if image_path and st.button("Analyze Emotion"):
-    with st.spinner("Analyzing emotion..."):
-        try:
-            analysis = DeepFace.analyze(img_path=image_path, actions=["emotion"], enforce_detection=False)
-            emotion_result = analysis[0]["dominant_emotion"]
-            st.success(f"Detected Emotion: **{emotion_result.upper()}**")
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+# Webcam stream
+cap = cv2.VideoCapture(0)
+frame_to_analyze = None
 
-# Chatbot section
-if emotion_result:
-    st.subheader("2. Chatbot Response")
-    if emotion_result.lower() == "happy":
-        st.write("😊 I'm glad you're feeling happy! Keep smiling!")
-    elif emotion_result.lower() == "sad":
-        st.write("😢 It's okay to feel sad. I'm here if you want to talk.")
-    elif emotion_result.lower() == "angry":
-        st.write("😠 Take a deep breath. Want to vent a little?")
-    elif emotion_result.lower() == "surprise":
-        st.write("😲 Wow! Something unexpected?")
-    elif emotion_result.lower() == "fear":
-        st.write("😨 Don't worry, you're safe here.")
-    elif emotion_result.lower() == "disgust":
-        st.write("🤢 Yikes! Want to tell me more?")
+if not cap.isOpened():
+    st.error("Unable to access webcam.")
+else:
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        camera_placeholder.image(frame_rgb, channels="RGB", caption="Live Webcam Feed")
+        key = cv2.waitKey(1)
+        frame_to_analyze = frame_rgb
+        break  # Stop after one frame to let Streamlit update
+
+if st.button("Capture Emotion"):
+    if frame_to_analyze is not None:
+        emotion, score = analyze_emotion(frame_to_analyze)
+        if emotion:
+            emotion_placeholder.success(f"Emotion Detected: {emotion} ({score*100:.1f}%)")
+            response_placeholder.info(generate_response(emotion))
+        else:
+            emotion_placeholder.warning("Couldn't detect any clear emotion.")
+        frame_placeholder.image(frame_to_analyze, caption="Analyzed Frame", channels="RGB")
     else:
-        st.write("😐 I'm not sure how you're feeling. Want to share?")
+        st.warning("No frame to analyze.")
+
+cap.release()
+cv2.destroyAllWindows()

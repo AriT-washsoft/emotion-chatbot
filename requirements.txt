@@ -1,4 +1,6 @@
+
 streamlit==1.18.1
 opencv-python-headless==4.9.0.80
-deepface==0.0.93
-tensorflow~=2.10.0
+fer==22.5.1
+numpy==1.26.4
+Pillow
